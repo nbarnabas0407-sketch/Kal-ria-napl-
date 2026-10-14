@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EDF1EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1A15" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kalória">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+</style>
+<title>Kalórianapló</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+/* Layout: egy keskeny oszlop, felül a napi összegzés gyűrűvel, alatta az étkezések, legalul a heti oszlopok. */
+:root {
+  --bg: #EDF1EE;
+  --surface: #FFFFFF;
+  --ink: #13261F;
+  --muted: #5B6B64;
+  --line: #D5DDD8;
+  --accent: #1E7A4F;
+  --accent-ink: #FFFFFF;
+  --over: #C23B22;
+  --track: #E1E8E3;
+  --soft: #E4EFE8;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1A15; --surface: #16241D; --ink: #E7F0EA; --muted: #93A59B;
+    --line: #27382F; --accent: #4FC285; --accent-ink: #06130C; --over: #FF7A5F;
+    --track: #22332A; --soft: #1B2D24; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1A15; --surface: #16241D; --ink: #E7F0EA; --muted: #93A59B;
+  --line: #27382F; --accent: #4FC285; --accent-ink: #06130C; --over: #FF7A5F;
+  --track: #22332A; --soft: #1B2D24; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
+.goal { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.875rem; }
+.goal input {
+  width: 5.5rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); text-align: right;
+}
+
+.daynav { display: flex; align-items: center; gap: 8px; }
+.daynav .label { flex: 1; text-align: center; font-weight: 500; text-transform: capitalize; min-width: 0; }
+.iconbtn {
+  width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface); cursor: pointer; font-size: 1.1rem; line-height: 1;
+}
+.iconbtn:hover { border-color: var(--accent); }
+.today-link { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 0.875rem; padding: 4px 8px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+
+.summary { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; }
+.ring { position: relative; width: 148px; height: 148px; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .track { stroke: var(--track); }
+.ring .bar { stroke: var(--accent); transition: stroke-dashoffset 0.4s ease; }
+.ring.over .bar { stroke: var(--over); }
+.ring .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.ring .num { font-family: var(--font-display); font-size: 2rem; font-weight: 700; line-height: 1; }
+.ring .cap { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+.ring.over .num { color: var(--over); }
+.stats { display: grid; gap: 10px; min-width: 0; }
+.stat { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 6px; font-size: 0.9375rem; }
+.stat:last-child { border-bottom: 0; padding-bottom: 0; }
+.stat span:first-child { color: var(--muted); }
+.stat b { font-weight: 700; }
+
+.eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+
+form.add { display: grid; gap: 12px; }
+.row { display: grid; grid-template-columns: 1fr 6.5rem; gap: 10px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 0.8125rem; color: var(--muted); }
+.field input, .field select {
+  width: 100%; padding: 10px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); min-height: 44px;
+}
+.macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+details summary { cursor: pointer; font-size: 0.875rem; color: var(--muted); padding: 4px 0; }
+details .macros { margin-top: 8px; }
+.primary {
+  background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px;
+  padding: 12px 16px; font-weight: 700; cursor: pointer; min-height: 44px;
+}
+.primary:hover { filter: brightness(1.08); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--line); background: var(--soft); border-radius: 999px;
+  padding: 6px 12px; font-size: 0.8125rem; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip small { color: var(--muted); margin-left: 4px; }
+.chipgroup { display: grid; gap: 8px; }
+.chip.custom { display: inline-flex; align-items: center; gap: 2px; padding-right: 4px; background: var(--surface); border-color: var(--accent); }
+.chip.custom .use { background: none; border: 0; cursor: pointer; padding: 0; }
+.chip-del { border: 0; background: none; color: var(--muted); cursor: pointer; width: 24px; height: 24px; border-radius: 999px; }
+.chip-del:hover { color: var(--over); }
+.secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; cursor: pointer; min-height: 44px; font-weight: 500; }
+.secondary:hover { border-color: var(--accent); }
+.btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.msg { font-size: 0.8125rem; color: var(--accent); min-height: 1.2em; }
+
+.meal { display: grid; gap: 4px; }
+.meal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.meal-head h3 { font-size: 1.0625rem; font-weight: 700; }
+.meal-head .sub { color: var(--muted); font-size: 0.875rem; }
+.entries { list-style: none; margin: 0; padding: 0; }
+.entry { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.entry .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.entry .kcal { font-weight: 700; white-space: nowrap; }
+.entry .mac { display: block; font-size: 0.75rem; color: var(--muted); }
+.badge { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
+.del { width: 36px; height: 36px; border: 0; background: none; color: var(--muted); cursor: pointer; border-radius: 6px; font-size: 1.1rem; }
+.del:hover { color: var(--over); background: var(--soft); }
+.empty { color: var(--muted); font-size: 0.875rem; padding: 6px 0 2px; border-top: 1px solid var(--line); }
+.meals { display: grid; gap: 18px; }
+
+.sample-note { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 0.875rem; color: var(--muted); background: var(--soft); border-radius: 8px; padding: 10px 12px; }
+.sample-note button { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+
+.week { display: grid; gap: 12px; }
+.bars { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 140px; align-items: end; }
+.bars .goalline { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--muted); pointer-events: none; }
+.barbtn { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; background: none; border: 0; padding: 0; cursor: pointer; gap: 4px; min-width: 0; }
+.barbtn .col { width: 100%; max-width: 36px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; opacity: 0.55; }
+.barbtn.over .col { background: var(--over); }
+.barbtn.sel .col { opacity: 1; }
+.labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center; font-size: 0.75rem; color: var(--muted); }
+.labels .sel { color: var(--ink); font-weight: 700; }
+.legend { font-size: 0.75rem; color: var(--muted); }
+
+@media (max-width: 420px) {
+  .summary { grid-template-columns: 1fr; justify-items: center; }
+  .stats { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .ring .bar { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Kalórianapló</h1>
+    <div class="goal">
+      <label for="goal">Napi cél</label>
+      <input id="goal" type="number" inputmode="numeric" min="500" max="10000" step="50">
+      <span>kcal</span>
+    </div>
+  </header>
+
+  <div>
+    <div class="daynav">
+      <button class="iconbtn" id="prev" aria-label="Előző nap">&#8592;</button>
+      <div class="label" id="daylabel"></div>
+      <button class="iconbtn" id="next" aria-label="Következő nap">&#8594;</button>
+    </div>
+    <div style="text-align:center"><button class="today-link" id="today" hidden>Ugrás a mai napra</button></div>
+  </div>
+
+  <div class="panel summary" aria-live="polite">
+    <div class="ring" id="ring">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="track" cx="60" cy="60" r="52" fill="none" stroke-width="11"></circle>
+        <circle class="bar" id="bar" cx="60" cy="60" r="52" fill="none" stroke-width="11" stroke-linecap="round"></circle>
+      </svg>
+      <div class="center"><div class="num" id="remain">0</div><div class="cap" id="remaincap">kcal maradt</div></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>Elfogyasztva</span><b id="eaten">0 kcal</b></div>
+      <div class="stat"><span>Fehérje</span><b id="sp">–</b></div>
+      <div class="stat"><span>Szénhidrát</span><b id="sc">–</b></div>
+      <div class="stat"><span>Zsír</span><b id="sf">–</b></div>
+    </div>
+  </div>
+
+  <div class="sample-note" id="samplenote" hidden>
+    <span>A mai napon példaadatok láthatók, hogy lásd, hogyan néz ki az app.</span>
+    <button type="button" id="clearsamples">Példák törlése</button>
+  </div>
+
+  <div class="panel">
+    <form class="add" id="addform" autocomplete="off">
+      <div class="eyebrow">Étel hozzáadása</div>
+      <div class="chipgroup">
+        <div class="legend" id="mylabel" hidden>Saját ételeid</div>
+        <div class="chips" id="mychips"></div>
+        <div class="legend">Gyakori ételek</div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="f-name">Étel neve</label><input id="f-name" type="text" maxlength="80" required placeholder="pl. Rántotta"></div>
+        <div class="field"><label for="f-kcal">kcal</label><input id="f-kcal" type="number" inputmode="numeric" min="0" max="5000" required placeholder="250"></div>
+      </div>
+      <div class="field"><label for="f-meal">Étkezés</label>
+        <select id="f-meal">
+          <option value="reggeli">Reggeli</option>
+          <option value="ebed">Ebéd</option>
+          <option value="vacsora">Vacsora</option>
+          <option value="snack">Snack</option>
+        </select>
+      </div>
+      <details>
+        <summary>Makrók megadása (nem kötelező)</summary>
+        <div class="macros">
+          <div class="field"><label for="f-p">Fehérje (g)</label><input id="f-p" type="number" inputmode="decimal" min="0" step="0.1"></div>
+          <div class="field"><label for="f-c">Szénhidrát (g)</label><input id="f-c" type="number" inputmode="decimal" min="0" step="0.1"></div>
+          <div class="field"><label for="f-f">Zsír (g)</label><input id="f-f" type="number" inputmode="decimal" min="0" step="0.1"></div>
+        </div>
+      </details>
+      <div class="btnrow">
+        <button class="primary" type="submit">Hozzáadás a naplóhoz</button>
+        <button class="secondary" type="button" id="savefood">Mentés saját ételként</button>
+      </div>
+      <div class="msg" id="msg" role="status"></div>
+    </form>
+  </div>
+
+  <div class="panel meals" id="meals"></div>
+
+  <div class="panel week">
+    <div class="eyebrow">Az elmúlt 7 nap</div>
+    <div class="bars" id="bars"></div>
+    <div class="labels" id="labels"></div>
+    <div class="legend">A szaggatott vonal a napi célod. Koppints egy oszlopra, és megnyílik az a nap.</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = "kaloriaNaplo.v1";
+  var MEALS = [
+    { id: "reggeli", name: "Reggeli" },
+    { id: "ebed", name: "Ebéd" },
+    { id: "vacsora", name: "Vacsora" },
+    { id: "snack", name: "Snack" }
+  ];
+  // Gyakori ételek, tipikus adagokkal (kb. értékek, átírhatók hozzáadás előtt).
+  var PRESETS = [
+    { n: "Alma (1 db)", k: 80, m: "snack", p: 0.4, c: 21, f: 0.3 },
+    { n: "Banán (1 db)", k: 105, m: "snack", p: 1.3, c: 27, f: 0.4 },
+    { n: "Tojás (1 db)", k: 78, m: "reggeli", p: 6.3, c: 0.6, f: 5.3 },
+    { n: "Kenyér (1 szelet)", k: 80, m: "reggeli", p: 3, c: 15, f: 1 },
+    { n: "Csirkemell (100 g)", k: 165, m: "ebed", p: 31, c: 0, f: 3.6 },
+    { n: "Főtt rizs (100 g)", k: 130, m: "ebed", p: 2.7, c: 28, f: 0.3 },
+    { n: "Natúr joghurt (150 g)", k: 90, m: "reggeli", p: 5, c: 7, f: 5 },
+    { n: "Tej (2 dl)", k: 95, m: "reggeli", p: 6.5, c: 9.6, f: 3.5 }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = load();
+  var current = startOfDay(new Date());
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function keyOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function num(v) { var x = parseFloat(v); return isFinite(x) ? x : 0; }
+  function round1(x) { return Math.round(x * 10) / 10; }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && typeof s.goal === "number" && s.days) {
+          if (!Array.isArray(s.foods)) s.foods = [];
+          return s;
+        }
+      }
+    } catch (e) {}
+    var today = keyOf(startOfDay(new Date()));
+    var seed = { goal: 2000, days: {}, foods: [] };
+    seed.days[today] = [
+      { id: uid(), name: "Zabkása banánnal (példa)", kcal: 320, meal: "reggeli", p: 10, c: 54, f: 7, sample: true },
+      { id: uid(), name: "Csirkepaprikás galuskával (példa)", kcal: 640, meal: "ebed", p: 38, c: 62, f: 24, sample: true },
+      { id: uid(), name: "Alma (példa)", kcal: 80, meal: "snack", p: 0.4, c: 21, f: 0.3, sample: true }
+    ];
+    return seed;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function entriesFor(d) { return state.days[keyOf(d)] || []; }
+  function totalFor(d) {
+    return entriesFor(d).reduce(function (s, e) { return s + e.kcal; }, 0);
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function renderSummary() {
+    var list = entriesFor(current);
+    var total = list.reduce(function (s, e) { return s + e.kcal; }, 0);
+    var goal = state.goal;
+    var diff = goal - total;
+    var over = diff < 0;
+    var R = 52, C = 2 * Math.PI * R;
+    var pct = goal > 0 ? Math.min(total / goal, 1) : 0;
+    var bar = $("bar");
+    bar.setAttribute("stroke-dasharray", C.toFixed(2));
+    bar.setAttribute("stroke-dashoffset", (C * (1 - pct)).toFixed(2));
+    $("ring").className = "ring" + (over ? " over" : "");
+    $("remain").textContent = Math.abs(Math.round(diff)).toLocaleString("hu-HU");
+    $("remaincap").textContent = over ? "kcal túllépés" : "kcal maradt";
+    $("eaten").textContent = Math.round(total).toLocaleString("hu-HU") + " kcal";
+    var p = 0, c = 0, f = 0, any = false;
+    list.forEach(function (e) {
+      if (e.p || e.c || e.f) any = true;
+      p += e.p || 0; c += e.c || 0; f += e.f || 0;
+    });
+    $("sp").textContent = any ? round1(p) + " g" : "–";
+    $("sc").textContent = any ? round1(c) + " g" : "–";
+    $("sf").textContent = any ? round1(f) + " g" : "–";
+    $("samplenote").hidden = !list.some(function (e) { return e.sample; });
+  }
+
+  function renderDayNav() {
+    var label = current.toLocaleDateString("hu-HU", { weekday: "long", month: "long", day: "numeric" });
+    $("daylabel").textContent = label;
+    $("today").hidden = keyOf(current) === keyOf(startOfDay(new Date()));
+  }
+
+  function renderMeals() {
+    var box = $("meals");
+    box.textContent = "";
+    var list = entriesFor(current);
+    MEALS.forEach(function (m) {
+      var items = list.filter(function (e) { return e.meal === m.id; });
+      var sub = items.reduce(function (s, e) { return s + e.kcal; }, 0);
+      var sec = el("section", "meal");
+      var head = el("div", "meal-head");
+      head.appendChild(el("h3", null, m.name));
+      head.appendChild(el("span", "sub", Math.round(sub).toLocaleString("hu-HU") + " kcal"));
+      sec.appendChild(head);
+      if (!items.length) {
+        sec.appendChild(el("div", "empty", "Még nincs tétel."));
+      } else {
+        var ul = el("ul", "entries");
+        items.forEach(function (e) {
+          var li = el("li", "entry");
+          var name = el("div", "name", e.name.replace(/\s*\(példa\)$/, ""));
+          if (e.sample) name.appendChild(el("span", "badge", "példa"));
+          if (e.p || e.c || e.f) {
+            name.appendChild(el("span", "mac",
+              "F " + round1(e.p || 0) + " · Sz " + round1(e.c || 0) + " · Zs " + round1(e.f || 0) + " g"));
+          }
+          li.appendChild(name);
+          li.appendChild(el("div", "kcal", Math.round(e.kcal) + " kcal"));
+          var del = el("button", "del", "✕");
+          del.type = "button";
+          del.setAttribute("aria-label", e.name + " törlése");
+          del.addEventListener("click", function () { removeEntry(e.id); });
+          li.appendChild(del);
+          ul.appendChild(li);
+        });
+        sec.appendChild(ul);
+      }
+      box.appendChild(sec);
+    });
+  }
+
+  function renderWeek() {
+    var bars = $("bars"), labels = $("labels");
+    bars.textContent = ""; labels.textContent = "";
+    var days = [];
+    for (var i = 6; i >= 0; i--) days.push(addDays(current, -i));
+    var totals = days.map(totalFor);
+    var max = Math.max(state.goal, Math.max.apply(null, totals), 1) * 1.1;
+    var line = el("div", "goalline");
+    line.style.bottom = "calc(" + (state.goal / max * 100).toFixed(1) + "% )";
+    bars.appendChild(line);
+    var short = ["V", "H", "K", "Sz", "Cs", "P", "Szo"];
+    days.forEach(function (d, idx) {
+      var t = totals[idx];
+      var sel = idx === 6;
+      var b = el("button", "barbtn" + (t > state.goal ? " over" : "") + (sel ? " sel" : ""));
+      b.type = "button";
+      b.setAttribute("aria-label", d.toLocaleDateString("hu-HU", { month: "long", day: "numeric" }) + ": " + Math.round(t) + " kcal");
+      var col = el("div", "col");
+      col.style.height = (t / max * 100).toFixed(1) + "%";
+      b.appendChild(col);
+      b.addEventListener("click", function () { current = d; render(); });
+      bars.appendChild(b);
+      labels.appendChild(el("div", sel ? "sel" : "", short[d.getDay()]));
+    });
+  }
+
+  function render() {
+    $("goal").value = state.goal;
+    renderDayNav();
+    renderSummary();
+    renderMeals();
+    renderWeek();
+  }
+
+  function removeEntry(id) {
+    var k = keyOf(current);
+    state.days[k] = (state.days[k] || []).filter(function (e) { return e.id !== id; });
+    save(); render();
+  }
+
+  // Gyorsválasztó chipek: saját és beépített ételek
+  function fillForm(p) {
+    $("f-name").value = p.n;
+    $("f-kcal").value = p.k;
+    $("f-meal").value = p.m;
+    $("f-p").value = p.p || ""; $("f-c").value = p.c || ""; $("f-f").value = p.f || "";
+    if (p.p || p.c || p.f) document.querySelector("details").open = true;
+    $("f-kcal").focus();
+    $("f-kcal").select();
+  }
+  function renderChips() {
+    var chips = $("chips"), mine = $("mychips");
+    chips.textContent = ""; mine.textContent = "";
+    $("mylabel").hidden = !state.foods.length;
+    PRESETS.forEach(function (p) {
+      var b = el("button", "chip", p.n);
+      b.type = "button";
+      b.appendChild(el("small", null, p.k + " kcal"));
+      b.addEventListener("click", function () { fillForm(p); });
+      chips.appendChild(b);
+    });
+    state.foods.forEach(function (p) {
+      var wrap = el("span", "chip custom");
+      var use = el("button", "use", p.n);
+      use.type = "button";
+      use.appendChild(el("small", null, p.k + " kcal"));
+      use.addEventListener("click", function () { fillForm(p); });
+      var del = el("button", "chip-del", "✕");
+      del.type = "button";
+      del.setAttribute("aria-label", p.n + " törlése a saját ételeid közül");
+      del.addEventListener("click", function () {
+        state.foods = state.foods.filter(function (f) { return f.id !== p.id; });
+        save(); renderChips();
+      });
+      wrap.appendChild(use); wrap.appendChild(del);
+      mine.appendChild(wrap);
+    });
+  }
+  function showMsg(t) { $("msg").textContent = t; }
+
+  $("savefood").addEventListener("click", function () {
+    var name = $("f-name").value.trim();
+    if (!name || $("f-kcal").value === "") { showMsg("Add meg az étel nevét és a kalóriáját."); return; }
+    var food = {
+      id: uid(), n: name, k: num($("f-kcal").value), m: $("f-meal").value,
+      p: num($("f-p").value), c: num($("f-c").value), f: num($("f-f").value)
+    };
+    var i = -1;
+    state.foods.forEach(function (f, idx) { if (f.n.toLowerCase() === name.toLowerCase()) i = idx; });
+    if (i >= 0) {
+      food.id = state.foods[i].id;
+      state.foods[i] = food;
+      showMsg("„" + name + "” frissítve a saját ételeid között.");
+    } else {
+      state.foods.push(food);
+      showMsg("„" + name + "” elmentve a saját ételeid közé.");
+    }
+    save(); renderChips();
+  });
+
+  $("addform").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var name = $("f-name").value.trim();
+    var kcal = num($("f-kcal").value);
+    if (!name || kcal < 0) return;
+    var k = keyOf(current);
+    (state.days[k] = state.days[k] || []).push({
+      id: uid(), name: name, kcal: kcal, meal: $("f-meal").value,
+      p: num($("f-p").value), c: num($("f-c").value), f: num($("f-f").value)
+    });
+    save();
+    showMsg("");
+    $("f-name").value = ""; $("f-kcal").value = "";
+    $("f-p").value = ""; $("f-c").value = ""; $("f-f").value = "";
+    render();
+    $("f-name").focus();
+  });
+
+  $("goal").addEventListener("change", function () {
+    var g = Math.round(num(this.value));
+    if (g >= 500 && g <= 10000) { state.goal = g; save(); }
+    render();
+  });
+  $("prev").addEventListener("click", function () { current = addDays(current, -1); render(); });
+  $("next").addEventListener("click", function () { current = addDays(current, 1); render(); });
+  $("today").addEventListener("click", function () { current = startOfDay(new Date()); render(); });
+  $("clearsamples").addEventListener("click", function () {
+    Object.keys(state.days).forEach(function (k) {
+      state.days[k] = state.days[k].filter(function (e) { return !e.sample; });
+    });
+    save(); render();
+  });
+
+  save();
+  renderChips();
+  render();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
